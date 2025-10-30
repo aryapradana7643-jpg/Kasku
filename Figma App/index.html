@@ -1,0 +1,820 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>KasKu — Demo</title>
+
+  <!-- Chart.js CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <style>
+    :root{
+      --bg:#F8FAFC;
+      --card:#FFFFFF;
+      --primary:#6EC1E4; /* biru muda */
+      --primary-600:#4A90E2;
+      --income:#16A34A;
+      --expense:#EF4444;
+      --muted:#6B7280;
+      --radius:14px;
+      --glass: rgba(255,255,255,0.7);
+      --muted-bg:#F1F5F9;
+      font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+    }
+    *{box-sizing:border-box}
+    body{
+      margin:0;
+      background:linear-gradient(180deg,#F3F7FB 0%, #F8FAFC 100%);
+      min-height:100vh;
+      color:#0F172A;
+      padding:24px;
+      -webkit-font-smoothing:antialiased;
+      -moz-osx-font-smoothing:grayscale;
+      transition:background 0.25s ease;
+    }
+
+    /* layout */
+    .app {
+      max-width:980px;
+      margin:0 auto;
+      display:grid;
+      grid-template-columns: 1fr 360px;
+      gap:20px;
+      align-items:start;
+    }
+
+    .main { display:flex; flex-direction:column; gap:20px; }
+    .card{
+      background:var(--card);
+      border-radius:var(--radius);
+      padding:18px;
+      box-shadow:0 6px 18px rgba(15,23,42,0.06);
+      transition:transform .25s ease, box-shadow .25s ease;
+    }
+    .card:hover{ transform:translateY(-4px); box-shadow:0 10px 30px rgba(15,23,42,0.08); }
+
+    .header { display:flex; justify-content:space-between; align-items:center; gap:12px; }
+    .title { font-size:18px; font-weight:700; }
+    .sub { color:var(--muted); font-size:13px; }
+
+    .balance { display:flex; justify-content:space-between; align-items:center; gap:12px; margin-top:12px; }
+    .balance-amount { font-size:28px; font-weight:800; }
+    .add-btn{
+      background:var(--primary-600);
+      color:#fff;
+      border:none;
+      padding:10px 14px;
+      border-radius:10px;
+      cursor:pointer;
+      font-weight:600;
+      box-shadow: 0 6px 18px rgba(74,144,226,0.18);
+    }
+
+    .summary { display:flex; gap:12px; margin-top:14px; }
+    .summary .item{ flex:1; padding:10px; border-radius:10px; background:linear-gradient(180deg, rgba(10,10,10,0.02), rgba(10,10,10,0.01)); text-align:center; }
+    .summary .num { font-weight:700; margin-top:6px; }
+
+    .transactions-list { display:flex; flex-direction:column; gap:8px; margin-top:12px; max-height:320px; overflow:auto; padding-right:6px;}
+    .tx { display:flex; justify-content:space-between; gap:12px; align-items:center; padding:8px; border-radius:10px; }
+    .tx .left { display:flex; gap:12px; align-items:center; }
+    .avatar { width:44px; height:44px; border-radius:10px; display:inline-grid; place-items:center; font-weight:700; color:#fff; }
+    .tx .meta { display:flex; flex-direction:column; }
+    .tx .amount { font-weight:700; min-width:110px; text-align:right; }
+
+    .right { display:flex; flex-direction:column; gap:20px; }
+
+    select, input[type=date], input[type=text], input[type=number], textarea {
+      padding:10px 12px; border-radius:10px; border:1px solid #E6EEF6; width:100%; background:transparent; outline:none;
+    }
+    label { font-size:13px; color:var(--muted); margin-bottom:6px; display:block; }
+
+    /* modal */
+    .modal-backdrop{
+      position:fixed; inset:0; background:rgba(2,6,23,0.4); display:none; place-items:center; z-index:40;
+    }
+    .modal{ width:420px; max-width:92%; background:var(--card); border-radius:14px; padding:18px; box-shadow:0 20px 50px rgba(2,6,23,0.3); }
+
+    .chip { padding:8px 10px; border-radius:10px; border:1px solid #F1F5F9; cursor:pointer; }
+    .chip.active{ border-color:var(--primary-600); background:rgba(78,164,226,0.08); }
+
+    footer { margin-top:20px; color:var(--muted); text-align:center; font-size:13px; }
+
+    /* splash + pop */
+    #splash{
+      position:fixed; inset:0;
+      background:linear-gradient(180deg,var(--primary) 0%, #FFFFFF 100%);
+      display:flex; flex-direction:column; align-items:center; justify-content:center;
+      z-index:9999; transition:opacity 1s ease;
+    }
+    @keyframes pop { 0%{ transform:scale(1);} 100%{ transform:scale(1.08);} }
+
+    /* profile floating btn */
+    #profileBtn {
+      position:fixed; top:20px; right:20px; background:var(--primary); color:white; border:none; border-radius:50%;
+      width:45px; height:45px; font-size:20px; cursor:pointer; box-shadow:0 4px 10px rgba(0,0,0,0.12); z-index:1000;
+    }
+
+    /* profile popup */
+    .popup-backdrop { position:fixed; inset:0; background:rgba(255,255,255,0.7); backdrop-filter: blur(8px); display:flex; justify-content:center; align-items:center; z-index:5000; opacity:0; pointer-events:none; transition:opacity .35s ease; }
+    .popup-card { background:white; border-radius:16px; padding:28px; width:320px; box-shadow:0 12px 30px rgba(0,0,0,0.1); transform:scale(.9); transition:transform .3s ease; }
+
+    /* notification */
+    #notify {
+      position:fixed; top:22px; left:50%; transform:translateX(-50%) translateY(-10px); z-index:11000;
+      background:linear-gradient(90deg, rgba(110,193,228,0.95), rgba(74,144,226,0.95));
+      color:white; padding:12px 18px; border-radius:12px; box-shadow:0 8px 30px rgba(15,23,42,0.12);
+      opacity:0; pointer-events:none; transition:all .35s ease;
+    }
+
+    /* budget small styles */
+    .budget-input { margin-top:10px; padding:8px; width:100%; border-radius:8px; border:1px solid #E6EEF6; }
+    .save-budget { margin-top:10px; padding:8px 16px; background:var(--primary); color:white; border:none; border-radius:8px; cursor:pointer; }
+
+    /* responsive */
+    @media(max-width:980px){
+      .app{ grid-template-columns:1fr; padding-bottom:80px; }
+      .right{ order:2; }
+      .main{ order:1; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Splash -->
+  <div id="splash">
+    <img src="bcba58af-9283-40a5-ab64-dca8ba0d6196.png" alt="KasKu Logo" style="width:320px;height:auto;animation:pop 1.2s ease-in-out infinite alternate;">
+    <div style="font-size:28px;font-weight:800;color:#0F172A;margin-top:12px;">KasKu</div>
+    <div style="color:#0F172A99;font-size:14px;">Mengatur keuangan lebih mudah</div>
+  </div>
+
+  <!-- notification -->
+  <div id="notify" role="status" aria-live="polite"></div>
+
+  <div class="app" id="appRoot">
+    <div class="main">
+
+      <!-- Dashboard card -->
+      <div class="card" id="dashboardCard">
+        <div class="header">
+          <div style="display:flex;gap:12px;align-items:center">
+            <img src="bcba58af-9283-40a5-ab64-dca8ba0d6196.png" alt="logo" style="width:46px;height:46px;border-radius:10px;object-fit:cover">
+            <div>
+              <div class="title">KasKu</div>
+              <div class="sub">Aplikasi pencatat keuangan sederhana</div>
+            </div>
+          </div>
+          <div>
+            <button id="openAdd" class="add-btn">+ Tambah Transaksi</button>
+          </div>
+        </div>
+
+        <div class="balance">
+          <div class="balance-left">
+            <div class="sub">Saldo Saat Ini</div>
+            <div id="balance" class="balance-amount">Rp 0</div>
+          </div>
+          <div style="text-align:right;">
+            <div class="sub">Bulan</div>
+            <div id="currentMonth" class="sub" style="font-weight:700;"></div>
+          </div>
+        </div>
+
+        <div class="summary" aria-hidden>
+          <div class="item">
+            <div class="sub">Pemasukan</div>
+            <div id="income" class="num">Rp 0</div>
+          </div>
+          <div class="item">
+            <div class="sub">Pengeluaran</div>
+            <div id="expense" class="num">Rp 0</div>
+          </div>
+          <div class="item">
+            <div class="sub">Transaksi</div>
+            <div id="count" class="num">0</div>
+          </div>
+        </div>
+
+        <div style="margin-top:12px;">
+          <div class="sub">Transaksi Terbaru</div>
+          <div id="txList" class="transactions-list"></div>
+        </div>
+      </div>
+
+      <!-- Chart card -->
+      <div class="card">
+        <div class="header">
+          <div>
+            <div class="title">Laporan Bulanan</div>
+            <div class="sub">Ringkasan visual pemasukan vs pengeluaran</div>
+          </div>
+          <div style="font-size:13px; color:var(--muted); display:flex; gap:10px; align-items:center;">
+            <button id="exportCsv" style="background:none;border:none;color:var(--primary-600);cursor:pointer">Ekspor CSV</button>
+            <button id="clearHistory" style="background:none;border:none;color:var(--expense);cursor:pointer">🗑 Hapus Riwayat</button>
+          </div>
+        </div>
+
+        <div style="margin-top:12px">
+          <canvas id="mainChart" height="140"></canvas>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Right column -->
+    <div class="right">
+      <div class="card">
+        <div class="title">Filter & Ringkasan</div>
+
+        <div style="margin-top:12px;">
+          <label for="monthFilter">Pilih Bulan</label>
+          <select id="monthFilter"></select>
+        </div>
+
+        <div style="margin-top:12px;">
+          <label>Cari Transaksi</label>
+          <input id="search" type="text" placeholder="Cari judul atau kategori..." />
+        </div>
+
+        <div style="margin-top:12px;">
+          <label>Statistik Kategori (Top 3)</label>
+          <div id="catList" style="display:flex;flex-direction:column;gap:8px;margin-top:8px"></div>
+        </div>
+      </div>
+
+      <!-- Budget Planner -->
+      <div class="card">
+        <div class="title">🎯 Rencana Keuangan</div>
+        <div class="sub">Atur batas pengeluaran bulanan kamu</div>
+
+        <input id="budgetInput" class="budget-input" type="number" placeholder="Masukkan target pengeluaran (Rp)">
+        <button id="saveBudgetBtn" class="save-budget">Simpan Target</button>
+
+        <div id="budgetStatus" style="margin-top:12px;font-size:14px;color:var(--muted)"></div>
+        <div id="budgetBarContainer" style="background:var(--muted-bg); border-radius:10px; overflow:hidden; height:12px; margin-top:10px;">
+          <div id="budgetBar" style="height:12px; width:0%; background:var(--primary-600); transition:width 0.5s ease;"></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="title">Tips Singkat</div>
+        <div class="sub" style="margin-top:8px">
+          • Catat transaksi segera setelah terjadi.<br>
+          • Kelompokkan kategori agar laporan lebih berguna.<br>
+          • Gunakan ekspor CSV untuk backup.
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <footer>
+    Built with ❤️ — KasKu demo. Simpan file ini sebagai <code>index.html</code>.
+  </footer>
+
+  <!-- Modal for add transaction -->
+  <div id="modal" class="modal-backdrop" role="dialog" aria-hidden="true">
+    <div class="modal" role="document" aria-modal="true">
+      <div style="display:flex;justify-content:space-between;align-items:center;">
+        <div>
+          <div style="font-weight:800;">Tambah Transaksi</div>
+          <div class="sub" style="margin-top:4px">Isi data transaksi dengan cepat</div>
+        </div>
+        <button id="closeModal" style="background:none;border:none;font-size:20px;cursor:pointer">✕</button>
+      </div>
+
+      <form id="txForm" style="margin-top:12px" autocomplete="off">
+        <div style="margin-bottom:10px;">
+          <label>Judul</label>
+          <input id="title" type="text" placeholder="Contoh: Jualan Kopi" required />
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+          <div>
+            <label>Nominal (Rp)</label>
+            <input id="amount" type="number" min="0" placeholder="25000" required />
+          </div>
+          <div>
+            <label>Tanggal</label>
+            <input id="date" type="date" required />
+          </div>
+        </div>
+
+        <div style="display:flex;gap:10px;margin-top:10px;">
+          <div>
+            <label>Tipe</label>
+            <div style="display:flex;gap:8px;margin-top:6px;">
+              <div id="typeIncome" class="chip">Pemasukan</div>
+              <div id="typeExpense" class="chip active">Pengeluaran</div>
+            </div>
+          </div>
+
+          <div style="flex:1;">
+            <label>Kategori</label>
+            <select id="category">
+              <option value="Penjualan">Penjualan</option>
+              <option value="Bahan">Bahan</option>
+              <option value="Operasional">Operasional</option>
+              <option value="Transport">Transport</option>
+              <option value="Lainnya">Lainnya</option>
+            </select>
+          </div>
+        </div>
+
+        <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:12px;">
+          <button type="button" id="cancelBtn" style="background:none;border:none;padding:8px 12px;border-radius:10px;cursor:pointer">Batal</button>
+          <button type="submit" class="add-btn">Simpan</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Profile button & popups -->
+  <button id="profileBtn">👤</button>
+
+  <div id="profilePopup" class="popup-backdrop" aria-hidden="true">
+    <div id="profileCard" class="popup-card" style="text-align:center">
+      <img id="profileImage" src="bcba58af-9283-40a5-ab64-dca8ba0d6196.png" alt="avatar" style="width:80px;height:80px;border-radius:50%;object-fit:cover;margin-bottom:10px">
+      <h2 id="profileName" style="margin:5px 0;font-size:20px;color:#0F172A;">Arya</h2>
+      <p id="profileRole" style="margin:0;color:var(--muted)">KasKu User</p>
+      <p id="profileBio" style="font-size:14px;color:#4B5563;margin-top:12px">Mengelola keuangan dengan mudah dan rapi 💰</p>
+
+      <div style="display:flex;gap:8px;justify-content:center;margin-top:14px">
+        <button id="editProfile" style="padding:8px 14px;border-radius:10px;border:2px solid var(--primary);background:transparent;color:var(--primary);cursor:pointer">✏️ Edit</button>
+        <button id="closeProfile" style="padding:8px 14px;border-radius:10px;background:var(--primary);color:white;border:none;cursor:pointer">Tutup</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="editPopup" class="popup-backdrop" aria-hidden="true">
+    <div id="editCard" class="popup-card">
+      <h3 style="color:#0F172A;margin-bottom:12px">Edit Profil</h3>
+      <label for="editImage" style="display:block;cursor:pointer;margin-bottom:8px;text-align:center">
+        <img id="previewImage" src="bcba58af-9283-40a5-ab64-dca8ba0d6196.png" alt="preview" style="width:80px;height:80px;border-radius:50%;object-fit:cover;border:2px solid var(--primary);display:block;margin:0 auto">
+        <div style="font-size:12px;color:var(--primary);margin-top:6px">Klik untuk ganti foto</div>
+      </label>
+      <input type="file" id="editImage" accept="image/*" style="display:none;">
+      <input type="text" id="editName" placeholder="Nama" style="width:100%;padding:10px;border:1px solid #D1D5DB;border-radius:8px;margin-top:10px">
+      <input type="text" id="editRole" placeholder="Peran" style="width:100%;padding:10px;border:1px solid #D1D5DB;border-radius:8px;margin-top:10px">
+      <textarea id="editBio" placeholder="Bio singkat" style="width:100%;padding:10px;border:1px solid #D1D5DB;border-radius:8px;height:70px;margin-top:10px"></textarea>
+      <div style="display:flex;gap:8px;justify-content:center;margin-top:12px">
+        <button id="saveProfile" style="padding:8px 14px;border-radius:10px;background:var(--primary);color:white;border:none;cursor:pointer">Simpan</button>
+      </div>
+    </div>
+  </div>
+
+<script>
+/* ======= KasKu all-in-one script =======
+   - Single IIFE keeps scope tidy
+   - localStorage keys: kasku_tx, kasku_budget, profile fields (optional)
+======================================== */
+(() => {
+  // Helpers
+  const $ = (s) => document.querySelector(s);
+  const formatIDR = (n) => {
+    if (isNaN(n) || n === null) return 'Rp 0';
+    return 'Rp ' + Number(n).toLocaleString('id-ID');
+  };
+  const todayISO = () => new Date().toISOString().slice(0,10);
+
+  // Elements
+  const modal = $('#modal');
+  const openAdd = $('#openAdd');
+  const closeModal = $('#closeModal');
+  const txForm = $('#txForm');
+  const txList = $('#txList');
+  const balanceEl = $('#balance');
+  const incomeEl = $('#income');
+  const expenseEl = $('#expense');
+  const countEl = $('#count');
+  const currentMonthEl = $('#currentMonth');
+  const monthFilter = $('#monthFilter');
+  const searchInput = $('#search');
+  const catList = $('#catList');
+  const exportCsvBtn = $('#exportCsv');
+  const clearHistoryBtn = $('#clearHistory');
+
+  const typeIncome = $('#typeIncome');
+  const typeExpense = $('#typeExpense');
+
+  const titleField = $('#title');
+  const amountField = $('#amount');
+  const dateField = $('#date');
+  const categoryField = $('#category');
+
+  const ctx = document.getElementById('mainChart').getContext('2d');
+  let chartInstance = null;
+
+  // budget planner elements
+  const budgetInput = $('#budgetInput');
+  const saveBudgetBtn = $('#saveBudgetBtn');
+  const budgetStatus = $('#budgetStatus');
+  const budgetBar = $('#budgetBar');
+
+  // profile elements
+  const profileBtn = $('#profileBtn');
+  const profilePopup = $('#profilePopup');
+  const profileCard = $('#profileCard');
+  const closeProfile = $('#closeProfile');
+  const editProfile = $('#editProfile');
+  const editPopup = $('#editPopup');
+  const editCard = $('#editCard');
+  const saveProfile = $('#saveProfile');
+  const profileImg = $('#profileImage');
+  const previewImg = $('#previewImage');
+  const editImgInput = $('#editImage');
+
+  const notifyEl = $('#notify');
+
+  // state
+  window.txs = []; // make global for some helper scripts if needed
+  let budget = parseFloat(localStorage.getItem('kasku_budget')) || 0;
+
+  // load & save data
+  function loadData(){
+    const raw = localStorage.getItem('kasku_tx');
+    window.txs = raw ? JSON.parse(raw) : [];
+  }
+  function saveData(){
+    localStorage.setItem('kasku_tx', JSON.stringify(window.txs));
+  }
+
+  // CSV export
+  function exportCSV(){
+    if (!window.txs || window.txs.length===0){ alert('Tidak ada data untuk diekspor.'); return; }
+    const rows = [['id','title','amount','type','category','date']];
+    for (const t of window.txs) rows.push([t.id, t.title, t.amount, t.type, t.category, t.date]);
+    const csv = rows.map(r=>r.map(c => `"${String(c).replace(/"/g,'""')}"`).join(',')).join('\n');
+    const blob = new Blob([csv], {type:'text/csv;charset=utf-8;'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'kasku_export_' + (new Date()).toISOString().slice(0,10) + '.csv';
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  // render UI
+  function render(){
+    // filter by selected month
+    const sel = monthFilter.value || '';
+    const q = searchInput.value.trim().toLowerCase();
+
+    const filtered = window.txs.filter(t => {
+      if (sel){
+        if (!t.date.startsWith(sel)) return false;
+      }
+      if (q){
+        return t.title.toLowerCase().includes(q) || t.category.toLowerCase().includes(q);
+      }
+      return true;
+    });
+
+    // compute totals
+    const income = filtered.filter(t=>t.type==='income').reduce((s,t)=>s+Number(t.amount),0);
+    const expense = filtered.filter(t=>t.type==='expense').reduce((s,t)=>s+Number(t.amount),0);
+    const balance = income - expense;
+
+    incomeEl.textContent = formatIDR(income);
+    expenseEl.textContent = formatIDR(expense);
+    balanceEl.textContent = formatIDR(balance);
+    countEl.textContent = filtered.length;
+
+    // list latest
+    const sorted = filtered.slice().sort((a,b)=> new Date(b.date) - new Date(a.date));
+    txList.innerHTML = '';
+    if (sorted.length===0){
+      txList.innerHTML = '<div class="sub" style="padding:12px;color:var(--muted)">Belum ada transaksi</div>';
+    } else {
+      for (const t of sorted.slice(0,50)){
+        const el = document.createElement('div');
+        el.className = 'tx';
+        el.innerHTML = `
+          <div class="left">
+            <div class="avatar" style="background:${t.type==='income' ? 'var(--income)' : 'var(--expense)'}">
+              ${t.title.slice(0,1).toUpperCase()}
+            </div>
+            <div class="meta">
+              <div style="font-weight:700">${escapeHtml(t.title)}</div>
+              <div class="sub">${t.category} • ${formatDate(t.date)}</div>
+            </div>
+          </div>
+          <div class="amount" style="color:${t.type==='income'?'var(--income)':'var(--expense)'}">
+            ${t.type==='income' ? '+' : '-'} ${formatIDR(t.amount)}
+          </div>
+        `;
+        txList.appendChild(el);
+      }
+    }
+
+    renderChart(filtered);
+    renderCategoryList(filtered);
+    updateBudgetStatus();
+  }
+
+  function renderChart(items){
+    const inc = items.filter(t=>t.type==='income').reduce((s,t)=>s+Number(t.amount),0);
+    const exp = items.filter(t=>t.type==='expense').reduce((s,t)=>s+Number(t.amount),0);
+
+    const data = {
+      labels: ['Pemasukan','Pengeluaran'],
+      datasets:[{
+        label:'Ringkasan',
+        data:[inc, exp],
+        backgroundColor: ['rgba(34,197,94,0.9)','rgba(239,68,68,0.9)'],
+        hoverOffset:6
+      }]
+    };
+
+    if (chartInstance) chartInstance.destroy();
+    chartInstance = new Chart(ctx, {
+      type:'doughnut',
+      data,
+      options:{
+        plugins:{ legend:{ position:'bottom' } },
+        maintainAspectRatio:false,
+      }
+    });
+  }
+
+  function renderCategoryList(items){
+    const map = {};
+    for (const t of items){
+      map[t.category] = (map[t.category]||0) + Number(t.amount);
+    }
+    const arr = Object.entries(map).map(([k,v]) => ({k,v:Math.abs(v)})).sort((a,b)=>b.v-a.v).slice(0,3);
+    catList.innerHTML = '';
+    if (arr.length===0){
+      catList.innerHTML = '<div class="sub" style="color:var(--muted)">Belum ada kategori</div>';
+      return;
+    }
+    for (const a of arr){
+      const row = document.createElement('div');
+      row.style.display='flex';
+      row.style.justifyContent='space-between';
+      row.style.alignItems='center';
+      row.innerHTML = `<div class="sub">${escapeHtml(a.k)}</div><div style="font-weight:700">${formatIDR(a.v)}</div>`;
+      catList.appendChild(row);
+    }
+  }
+
+  // utilities
+  function formatDate(d){
+    const dt = new Date(d + 'T00:00:00');
+    const opt = { day:'2-digit', month:'short', year:'numeric' };
+    return dt.toLocaleDateString('id-ID', opt);
+  }
+  function escapeHtml(s){
+    return String(s).replace(/[&<>"']/g, (m)=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[m]));
+  }
+
+  // add transaction
+  function addTx(payload){
+    payload.id = 'tx_' + Date.now() + '_' + Math.random().toString(36).slice(2,7);
+    window.txs.push(payload);
+    saveData();
+    render();
+    checkNotifications(); // trigger notifications on change
+  }
+
+  // build month filter
+  function buildMonthOptions(){
+    const set = new Set(window.txs.map(t => t.date.slice(0,7)));
+    set.add(todayISO().slice(0,7));
+    const arr = Array.from(set).sort((a,b)=>b.localeCompare(a));
+    monthFilter.innerHTML = '<option value="">Semua bulan</option>';
+    for (const m of arr){
+      const [y,mm] = m.split('-');
+      const dt = new Date(y, Number(mm)-1,1);
+      const label = dt.toLocaleString('id-ID',{month:'long',year:'numeric'});
+      const opt = document.createElement('option');
+      opt.value = m;
+      opt.textContent = label;
+      monthFilter.appendChild(opt);
+    }
+    monthFilter.value = todayISO().slice(0,7);
+    currentMonthEl.textContent = (new Date()).toLocaleString('id-ID',{month:'long',year:'numeric'});
+  }
+
+  // CSV export handler
+  exportCsvBtn.addEventListener('click', exportCSV);
+
+  // clear history handler
+  clearHistoryBtn.addEventListener('click', () => {
+    if (!confirm('Yakin ingin menghapus semua riwayat transaksi? Tindakan ini tidak dapat dibatalkan.')) return;
+    localStorage.removeItem('kasku_tx');
+    window.txs = [];
+    render();
+    showNotification('Semua riwayat transaksi dihapus.', 1800);
+  });
+
+  // modal events
+  openAdd.addEventListener('click', ()=> {
+    modal.style.display = 'grid';
+    modal.setAttribute('aria-hidden','false');
+    txForm.reset();
+    dateField.value = todayISO();
+    setType('expense');
+    titleField.focus();
+  });
+  closeModal.addEventListener('click', ()=> { modal.style.display='none'; modal.setAttribute('aria-hidden','true'); });
+  $('#cancelBtn').addEventListener('click', ()=> { modal.style.display='none'; modal.setAttribute('aria-hidden','true'); });
+
+  typeIncome.addEventListener('click', ()=> setType('income'));
+  typeExpense.addEventListener('click', ()=> setType('expense'));
+  function setType(t){
+    if (t==='income'){ typeIncome.classList.add('active'); typeExpense.classList.remove('active'); }
+    else { typeIncome.classList.remove('active'); typeExpense.classList.add('active'); }
+  }
+
+  txForm.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const type = typeIncome.classList.contains('active') ? 'income' : 'expense';
+    const title = titleField.value.trim() || 'Tanpa judul';
+    const amount = Math.abs(Number(amountField.value) || 0);
+    const date = dateField.value || todayISO();
+    const category = categoryField.value || 'Lainnya';
+    if (amount <= 0){ alert('Masukkan nominal yang valid.'); return; }
+    addTx({ title, amount, type, category, date });
+    modal.style.display='none';
+    modal.setAttribute('aria-hidden','true');
+  });
+
+  // search & filter
+  monthFilter.addEventListener('change', () => render());
+  searchInput.addEventListener('input', () => render());
+
+  // initial sample data if empty
+  function ensureDemo(){
+    if (window.txs.length === 0){
+      const demo = [
+        { title:'Modal Awal', amount:500000, type:'income', category:'Penjualan', date: todayISO() },
+        { title:'Beli Bahan', amount:75000, type:'expense', category:'Bahan', date: todayISO() },
+        { title:'Penjualan Kopi', amount:43500, type:'income', category:'Penjualan', date: todayISO() },
+      ];
+      window.txs = demo;
+      saveData();
+    }
+  }
+
+  // === BUDGET PLANNER ===
+  function updateBudgetStatus(){
+    const totalExpenseAll = window.txs.filter(tx=>tx.type==='expense').reduce((s,t)=>s+Number(t.amount),0);
+    if (budget > 0){
+      const percent = Math.min((totalExpenseAll / budget) * 100, 100);
+      budgetBar.style.width = percent + '%';
+      budgetStatus.innerHTML = `Pengeluaran: ${formatIDR(totalExpenseAll)} / ${formatIDR(budget)} (${percent.toFixed(1)}%)`;
+      if (percent < 70) budgetBar.style.backgroundColor = 'var(--primary-600)';
+      else if (percent < 100) budgetBar.style.backgroundColor = '#ffcc00';
+      else budgetBar.style.backgroundColor = '#ff4444';
+    } else {
+      budgetStatus.textContent = 'Belum ada target pengeluaran bulanan.';
+      budgetBar.style.width = '0%';
+    }
+  }
+
+  // load budget from storage
+  function loadBudget(){
+    budget = parseFloat(localStorage.getItem('kasku_budget')) || 0;
+    if (budget > 0) budgetInput.value = budget;
+    updateBudgetStatus();
+  }
+  saveBudgetBtn.addEventListener('click', () => {
+    const v = parseFloat(budgetInput.value);
+    if (isNaN(v) || v <= 0){ alert('Masukkan angka yang valid untuk target pengeluaran.'); return; }
+    budget = v;
+    localStorage.setItem('kasku_budget', String(budget));
+    updateBudgetStatus();
+    showNotification('Target pengeluaran tersimpan.', 1600);
+  });
+
+  // === Notifications ===
+  function showNotification(msg, duration=2200){
+    notifyEl.textContent = msg;
+    notifyEl.style.opacity = '1';
+    notifyEl.style.transform = 'translateX(-50%) translateY(0)';
+    notifyEl.style.pointerEvents = 'auto';
+    setTimeout(()=> {
+      notifyEl.style.opacity = '0';
+      notifyEl.style.transform = 'translateX(-50%) translateY(-10px)';
+      notifyEl.style.pointerEvents = 'none';
+    }, duration);
+  }
+
+  // check budget threshold and weekly change
+  function checkNotifications(){
+    // budget check: month-to-date expense vs budget
+    if (budget > 0){
+      const month = (new Date()).toISOString().slice(0,7);
+      const monthExpense = window.txs.filter(t=>t.type==='expense' && t.date.startsWith(month)).reduce((s,t)=>s+Number(t.amount),0);
+      const percent = (monthExpense / budget) * 100;
+      if (percent >= 100){
+        showNotification('⚠️ Kamu sudah melewati target pengeluaran bulan ini!', 3500);
+      } else if (percent >= 80){
+        showNotification('🔔 Peringatan: Pengeluaran sudah mencapai 80% dari target bulan ini.', 3000);
+      }
+    }
+
+    // weekly comparison: compare last 7 days vs previous 7 days
+    const now = new Date();
+    function daysAgo(n){ const d=new Date(now); d.setDate(now.getDate()-n); d.setHours(0,0,0,0); return d; }
+    const startThisWeek = daysAgo(6); // last 6 days + today = 7 days
+    const startPrevWeek = daysAgo(13);
+    const endPrevWeek = daysAgo(7);
+
+    const sumInRange = (start, end) => {
+      return window.txs.filter(t=>{
+        const td = new Date(t.date + 'T00:00:00');
+        return td >= start && td <= end && t.type==='expense';
+      }).reduce((s,t)=>s+Number(t.amount),0);
+    };
+    const thisWeek = sumInRange(startThisWeek, now);
+    const prevWeek = sumInRange(startPrevWeek, endPrevWeek);
+
+    if (prevWeek > 0 && thisWeek > prevWeek){
+      const increase = ((thisWeek - prevWeek)/prevWeek)*100;
+      if (increase >= 20){
+        showNotification(`📈 Pengeluaran minggu ini naik ${increase.toFixed(0)}% dibanding minggu lalu.`, 3500);
+      }
+    }
+  }
+
+  // small helper to compute totals for use on load
+  function computeTotals(){
+    const income = window.txs.filter(t=>t.type==='income').reduce((s,t)=>s+Number(t.amount),0);
+    const expense = window.txs.filter(t=>t.type==='expense').reduce((s,t)=>s+Number(t.amount),0);
+    return { income, expense };
+  }
+
+  // small toast on actions
+  function quickToast(msg, t=1200){
+    showNotification(msg, t);
+  }
+
+  // profile popup logic
+  profileBtn.addEventListener('click', () => {
+    profilePopup.style.opacity = '1';
+    profilePopup.style.pointerEvents = 'auto';
+    setTimeout(()=> profileCard.style.transform = 'scale(1)',50);
+  });
+  closeProfile.addEventListener('click', () => {
+    profileCard.style.transform = 'scale(.9)';
+    setTimeout(()=> { profilePopup.style.opacity = '0'; profilePopup.style.pointerEvents = 'none'; }, 250);
+  });
+  editProfile.addEventListener('click', () => {
+    $('#editName').value = $('#profileName').textContent;
+    $('#editRole').value = $('#profileRole').textContent;
+    $('#editBio').value = $('#profileBio').textContent;
+    previewImg.src = profileImg.src;
+    editPopup.style.opacity = '1';
+    editPopup.style.pointerEvents = 'auto';
+    setTimeout(()=> editCard.style.transform = 'scale(1)',50);
+  });
+  editImgInput.addEventListener('change', e => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = ev => previewImg.src = ev.target.result;
+    reader.readAsDataURL(file);
+  });
+  saveProfile.addEventListener('click', () => {
+    $('#profileName').textContent = $('#editName').value || 'User';
+    $('#profileRole').textContent = $('#editRole').value || 'KasKu User';
+    $('#profileBio').textContent = $('#editBio').value || '';
+    profileImg.src = previewImg.src;
+    // close edit
+    editCard.style.transform = 'scale(.9)';
+    setTimeout(()=> { editPopup.style.opacity='0'; editPopup.style.pointerEvents='none'; }, 250);
+  });
+
+  // splash hide
+  window.addEventListener('load', ()=> {
+    const s = document.getElementById('splash');
+    setTimeout(()=> {
+      s.style.opacity = '0';
+      setTimeout(()=> s.style.display = 'none', 900);
+    }, 1800);
+  });
+
+  // init load
+  loadData();
+  ensureDemo();
+  buildMonthOptions();
+  loadBudget();
+  render();
+  // initial notification check (on load)
+  setTimeout(checkNotifications, 1200);
+
+  // utilities for debugging quick add (optional)
+  window.__addDemoTx = (t)=>{ addTx(t); };
+
+  // expose some functions for console/debug if needed
+  window.kasku = {
+    addTx, render, loadData, saveData
+  };
+
+})();
+</script>
+
+</body>
+</html>
